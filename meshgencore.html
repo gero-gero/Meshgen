@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedural Humanoid - Metaball Method</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; display: flex; height: 100vh; background-color: #111827; }
+        #gui-container {
+            width: 350px; padding: 20px; background-color: #1f2937; color: #f3f4f6;
+            overflow-y: auto; border-right: 1px solid #374151; box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+        #renderer-container { flex-grow: 1; height: 100%; position: relative; }
+        canvas { display: block; }
+        .control-group { margin-bottom: 16px; }
+        .control-group label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 0.875rem; }
+        .control-group input[type="range"], .control-group input[type="color"] { width: 100%; cursor: pointer; }
+        .control-group input[type="color"] { height: 40px; border: 1px solid #4b5563; border-radius: 0.375rem; padding: 2px; }
+        .control-group output { display: inline-block; margin-left: 8px; font-size: 0.875rem; color: #d1d5db; }
+        h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 20px; color: #e5e7eb; border-bottom: 1px solid #4b5563; padding-bottom: 10px; }
+        .toggle-switch { display: flex; align-items: center; margin-bottom: 18px; }
+        .toggle-switch label { margin-right: 10px; margin-bottom: 0; }
+        .toggle-switch input[type="checkbox"] { height: 0; width: 0; visibility: hidden; }
+        .toggle-switch .slider { cursor: pointer; width: 50px; height: 26px; background-color: #4b5563; display: inline-block; border-radius: 26px; position: relative; transition: background-color 0.2s; }
+        .toggle-switch .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: transform 0.2s; }
+        .toggle-switch input:checked + .slider { background-color: #2563eb; }
+        .toggle-switch input:checked + .slider:before { transform: translateX(24px); }
+        body { font-family: 'Inter', sans-serif; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        .loader {
+            border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db;
+            width: 40px; height: 40px; animation: spin 2s linear infinite;
+            position: absolute; top: 50%; left: 50%; margin-left: -20px; margin-top: -20px;
+            z-index: 10; display: none;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <!-- GUI Container -->
+    <div id="gui-container">
+        <h2>Character Controls</h2>
+        <div class="toggle-switch"><label for="genderToggle" class="text-sm font-medium">Female / Male:</label><input type="checkbox" id="genderToggle"><label for="genderToggle" class="slider"></label><span id="genderValue" class="ml-2 text-sm text-gray-300">Female</span></div>
+        <div class="control-group"><label>Resolution (careful!): <output id="resolutionValue">40</output></label><input type="range" id="resolutionSlider" min="20" max="100" value="40" step="2"></div>
+        <div class="control-group"><label>Height: <output id="heightValue">1.0</output></label><input type="range" id="heightSlider" min="0.8" max="1.2" value="1" step="0.01"></div>
+        <div class="control-group"><label>Muscle / Thickness: <output id="thicknessValue">1.0</output></label><input type="range" id="thicknessSlider" min="0.6" max="1.8" value="1" step="0.01"></div>
+        <div class="control-group"><label>Shoulder Width: <output id="shoulderWidthValue">1.0</output></label><input type="range"id="shoulderWidthSlider" min="0.7" max="1.5" value="1" step="0.01"></div>
+        <div class="control-group"><label>Hips Width: <output id="hipsValue">1.0</output></label><input type="range" id="hipsSlider" min="0.7" max="1.5" value="1" step="0.01"></div>
+        <div class="control-group"><label>Waist Definition: <output id="waistValue">1.0</output></label><input type="range" id="waistSlider" min="0.5" max="2.5" value="1" step="0.05"></div>
+        <div class="control-group"><label id="bustLabel">Bust Size: <output id="bustValue">0.5</output></label><input type="range" id="bustSlider" min="0" max="1.5" value="0.5" step="0.01"></div>
+        <div class="control-group"><label>Body Color:</label><input type="color" id="bodyColorPicker" value="#E0AC69"></div>
+    </div>
+    <div id="renderer-container"><div id="loader" class="loader"></div></div>
+
+    <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/" } }</script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { MarchingCubes } from 'three/addons/effects/MarchingCubes.js';
+
+        let scene, camera, renderer, controls, effect, material, timeout;
+        
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x111827);
+            const container = document.getElementById('renderer-container');
+            
+            camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 100);
+            camera.position.set(0, 1.5, 5); // Adjusted camera position
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            const ambient = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambient);
+            const light = new THREE.DirectionalLight(0xffffff, 0.8);
+            light.position.set(5, 10, 7);
+            scene.add(light);
+            
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.target.set(0, 1.5, 0);
+            
+            material = new THREE.MeshStandardMaterial({
+                color: document.getElementById('bodyColorPicker').value,
+                roughness: 0.9, metalness: 0.1, side: THREE.DoubleSide
+            });
+
+            const initialResolution = parseInt(document.getElementById('resolutionSlider').value);
+            effect = new MarchingCubes(initialResolution, material, true, true);
+            scene.add(effect);
+
+            setupGUIListeners();
+            window.addEventListener('resize', onWindowResize);
+            animate();
+            updateCharacter();
+        }
+
+        function getParams() {
+            const params = {};
+            document.querySelectorAll('#gui-container input').forEach(input => {
+                const id = input.id.replace('Slider', '').replace('Picker', '');
+                if (input.type === 'range') params[id] = parseFloat(input.value);
+                else if (input.type === 'checkbox') params[id] = input.checked;
+                else if (input.type === 'color') params[id] = input.value;
+            });
+            return params;
+        }
+
+        function updateCharacter() {
+            document.getElementById('loader').style.display = 'block';
+            
+            if (timeout) clearTimeout(timeout);
+            timeout = setTimeout(() => {
+                const params = getParams();
+                const isMale = params.genderToggle;
+
+                effect.reset();
+                // Set isolation to 0. This means any area with a positive field value will be solid.
+                // This is the key to making the metaballs appear reliably.
+                effect.isolation = 0;
+                
+                // Define a base unit for the radius of the metaballs.
+                const SUBSTANCE_UNIT = 0.3; 
+                
+                // --- Define Metaballs using the new, reliable `addBall` function ---
+                const overallHeight = params.height * 1.8; 
+                const thickness = params.thickness;
+                
+                // --- Key Y positions for skeleton ---
+                const headY = overallHeight;
+                const shoulderY = overallHeight * 0.85;
+                const waistY = overallHeight * 0.5;
+                const hipY = overallHeight * 0.45;
+                const legBottomY = 0;
+                const armBottomY = overallHeight * 0.15;
+                
+                // --- Substance (radius) values for different parts ---
+                const headSubstance = SUBSTANCE_UNIT * 0.8 * thickness;
+                const torsoSubstance = SUBSTANCE_UNIT * 1.2 * thickness;
+                const limbSubstance = SUBSTANCE_UNIT * 0.6 * thickness;
+                const hipWidth = SUBSTANCE_UNIT * 0.9 * params.hips * (isMale ? 0.9 : 1.1);
+                const shoulderWidth = SUBSTANCE_UNIT * 1.3 * params.shoulderWidth * (isMale ? 1.1 : 0.9);
+
+                // --- Torso ---
+                // Create a chain of balls from hips to shoulders
+                const torsoPoints = [
+                    { y: hipY, substance: hipWidth },
+                    { y: waistY, substance: torsoSubstance },
+                    { y: shoulderY, substance: shoulderWidth }
+                ];
+                addLimb(0, torsoPoints[0].y, 0, 0, torsoPoints[2].y, 0, torsoPoints.map(p => p.substance));
+
+
+                // --- Waist Definition (Negative Ball) ---
+                const waistPinch = SUBSTANCE_UNIT * 1.5 * params.waist;
+                addBall(0, waistY, 0.2, waistPinch, true);
+
+                // --- Head ---
+                addBall(0, headY, 0.05, headSubstance);
+
+                // --- Limbs ---
+                const armStartX = shoulderWidth * 0.9;
+                // Left Arm
+                addLimb( -armStartX, shoulderY, 0, -armStartX*1.1, armBottomY, 0, [limbSubstance*1.2, limbSubstance]);
+                // Right Arm
+                addLimb( armStartX, shoulderY, 0, armStartX*1.1, armBottomY, 0, [limbSubstance*1.2, limbSubstance]);
+
+                const legStartX = hipWidth * 0.7;
+                 // Left Leg
+                addLimb(-legStartX, hipY, 0, -legStartX*0.8, legBottomY, 0, [limbSubstance*1.5, limbSubstance]);
+                // Right Leg
+                addLimb(legStartX, hipY, 0, legStartX*0.8, legBottomY, 0, [limbSubstance*1.5, limbSubstance]);
+
+
+                // --- Bust ---
+                if (!isMale && params.bust > 0.05) {
+                    const bustSubstance = SUBSTANCE_UNIT * 0.6 * params.bust * thickness;
+                    const bustY = overallHeight * 0.7;
+                    const bustX = shoulderWidth * 0.25;
+                    const bustZ = torsoSubstance * 0.5;
+                    addBall(-bustX, bustY, bustZ, bustSubstance);
+                    addBall(bustX, bustY, bustZ, bustSubstance);
+                }
+
+                effect.material.color.set(params.bodyColor);
+                document.getElementById('loader').style.display = 'none';
+
+            }, 50); 
+        }
+
+        /**
+         * The core function to add a metaball. This now uses a predictable parameter scheme.
+         * @param {number} x - X position.
+         * @param {number} y - Y position.
+         * @param {number} z - Z position.
+         * @param {number} substance - The effective radius of the ball's energy field.
+         * @param {boolean} isNegative - If true, this ball will repel the mesh instead of creating it.
+         */
+        function addBall(x, y, z, substance, isNegative = false) {
+            // The MarchingCubes effect's addBall function is:
+            // (x, y, z, strength, subtractValue).
+            // By fixing strength=1.0 and using our substance as the subtractValue,
+            // we get predictable behavior where substance acts like a radius.
+            effect.addBall(x, y, z, 1.0, substance, isNegative);
+        }
+        
+        /**
+         * Creates a limb from a series of metaballs.
+         * @param {number} x1, y1, z1 - Start position of the limb.
+         * @param {number} x2, y2, z2 - End position of the limb.
+         * @param {number[] | number} substance - The radius of the limb. If an array, interpolates between values.
+         */
+        function addLimb(x1, y1, z1, x2, y2, z2, substance) {
+            const start = new THREE.Vector3(x1, y1, z1);
+            const end = new THREE.Vector3(x2, y2, z2);
+            const numBalls = 12; 
+            for(let i = 0; i < numBalls; i++) {
+                const t = i / (numBalls - 1);
+                const pos = new THREE.Vector3().lerpVectors(start, end, t);
+                
+                let currentSubstance;
+                if (Array.isArray(substance)) {
+                    currentSubstance = substance[0] + (substance[1] - substance[0]) * t;
+                } else {
+                    currentSubstance = substance;
+                }
+                
+                // Taper the ends of the limbs to make joints look better
+                const jointTaper = Math.sin(t * Math.PI);
+                addBall(pos.x, pos.y, pos.z, currentSubstance * (0.6 + jointTaper * 0.4));
+            }
+        }
+        
+        function setupGUIListeners() {
+            document.querySelectorAll('#gui-container input').forEach(input => {
+                input.addEventListener('input', () => {
+                    // Direct UI update: much safer!
+                    if (input.type === 'range') {
+                        const outputEl = document.getElementById(input.id.replace('Slider', 'Value'));
+                        if (outputEl) {
+                            outputEl.textContent = parseFloat(input.value).toFixed(2);
+                        }
+                    }
+
+                    // Handle resolution change separately to avoid blocking the main thread too long
+                    if (input.id === 'resolutionSlider') {
+                        document.getElementById('loader').style.display = 'block';
+                        setTimeout(() => {
+                            effect.init(parseInt(input.value));
+                            updateCharacter();
+                        }, 10);
+                    } else {
+                        updateCharacter();
+                    }
+                });
+            });
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('renderer-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        init();
+
+    </script>
+</body>
+</html>
