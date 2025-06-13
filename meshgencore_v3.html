@@ -31,6 +31,16 @@
         <div class="control-group"><label>Shoulder Width: <output id="shoulderWidthValue">1.0</output></label><input type="range" id="shoulderWidthSlider" min="0.8" max="1.3" value="1" step="0.01"></div>
         <div class="control-group"><label>Hips Width: <output id="hipsValue">1.0</output></label><input type="range" id="hipsSlider" min="0.8" max="1.3" value="1" step="0.01"></div>
         <div class="control-group"><label>Waist Definition: <output id="waistValue">1.0</output></label><input type="range" id="waistSlider" min="0.8" max="1.3" value="1" step="0.01"></div>
+        <div class="control-group"><label>Knee Size: <output id="kneeSizeValue">1.0</output></label><input type="range" id="kneeSizeSlider" min="0.8" max="1.2" value="1" step="0.01"></div>
+        <div class="control-group"><label>Foot Size: <output id="footSizeValue">1.0</output></label><input type="range" id="footSizeSlider" min="0.8" max="1.2" value="1" step="0.01"></div>
+        <div class="control-group"><label>Hand Size: <output id="handSizeValue">1.0</output></label><input type="range" id="handSizeSlider" min="0.8" max="1.2" value="1" step="0.01"></div>
+        <div class="control-group"><label>Elbow Size: <output id="elbowSizeValue">1.0</output></label><input type="range" id="elbowSizeSlider" min="0.8" max="1.2" value="1" step="0.01"></div>
+        <div class="control-group"><label>Ankle Size: <output id="ankleSizeValue">1.0</output></label><input type="range" id="ankleSizeSlider" min="0.8" max="1.2" value="1" step="0.01"></div>
+        <div class="control-group"><label>Back Size: <output id="backSizeValue">1.0</output></label><input type="range" id="backSizeSlider" min="0.8" max="1.2" value="1" step="0.01"></div>
+        <div class="control-group"><label>Lower Back Size: <output id="lowerBackSizeValue">1.0</output></label><input type="range" id="lowerBackSizeSlider" min="0.8" max="1.2" value="1" step="0.01"></div>
+        <div class="control-group"><label>Eye Size: <output id="eyeSizeValue">1.0</output></label><input type="range" id="eyeSizeSlider" min="0.8" max="1.2" value="1" step="0.01"></div>
+        <div class="control-group"><label>Mouth Size: <output id="mouthSizeValue">1.0</output></label><input type="range" id="mouthSizeSlider" min="0.8" max="1.2" value="1" step="0.01"></div>
+        <div class="control-group"><label>Nose Size: <output id="noseSizeValue">1.0</output></label><input type="range" id="noseSizeSlider" min="0.8" max="1.2" value="1" step="0.01"></div>
         <div class="control-group"><label>Body Color:</label><input type="color" id="bodyColorPicker" value="#E0AC69"></div>
         <button id="exportButton" class="mt-4 px-3 py-2 bg-blue-600 rounded text-white">Export GLTF</button>
     </div>
@@ -84,7 +94,7 @@
 
         function loadModel() {
             const loader = new GLTFLoader();
-            loader.load('https://raw.githubusercontent.com/mrdoob/three.js/r161/examples/models/gltf/Soldier.glb', gltf => {
+            loader.load('https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/CesiumMan/glTF-Binary/CesiumMan.glb', gltf => {
                 model = gltf.scene;
                 model.traverse(o => {
                     if (o.isMesh) {
@@ -116,16 +126,33 @@
             const p = getParams();
             model.scale.set(p.thickness, p.height, p.thickness);
             // Shoulder and hip width adjustments
-            if (bones['mixamorigLeftShoulder'] && bones['mixamorigRightShoulder']) {
-                bones['mixamorigLeftShoulder'].position.x = basePositions['mixamorigLeftShoulder'].x * p.shoulderWidth;
-                bones['mixamorigRightShoulder'].position.x = basePositions['mixamorigRightShoulder'].x * p.shoulderWidth;
+            if (bones['Skeleton_arm_joint_L__4_'] && bones['Skeleton_arm_joint_R']) {
+                bones['Skeleton_arm_joint_L__4_'].position.x = basePositions['Skeleton_arm_joint_L__4_'].x * p.shoulderWidth;
+                bones['Skeleton_arm_joint_R'].position.x = basePositions['Skeleton_arm_joint_R'].x * p.shoulderWidth;
             }
-            if (bones['mixamorigLeftUpLeg'] && bones['mixamorigRightUpLeg']) {
-                bones['mixamorigLeftUpLeg'].position.x = basePositions['mixamorigLeftUpLeg'].x * p.hips;
-                bones['mixamorigRightUpLeg'].position.x = basePositions['mixamorigRightUpLeg'].x * p.hips;
+            if (bones['leg_joint_L_1'] && bones['leg_joint_R_1']) {
+                bones['leg_joint_L_1'].position.x = basePositions['leg_joint_L_1'].x * p.hips;
+                bones['leg_joint_R_1'].position.x = basePositions['leg_joint_R_1'].x * p.hips;
             }
-            if (bones['mixamorigSpine1']) {
-                bones['mixamorigSpine1'].scale.x = bones['mixamorigSpine1'].scale.z = p.waist;
+            if (bones['Skeleton_torso_joint_1']) {
+                bones['Skeleton_torso_joint_1'].scale.x = bones['Skeleton_torso_joint_1'].scale.z = p.lowerBackSize * p.waist;
+            }
+            if (bones['Skeleton_torso_joint_2']) {
+                bones['Skeleton_torso_joint_2'].scale.x = bones['Skeleton_torso_joint_2'].scale.z = p.backSize;
+            }
+            if (bones['leg_joint_L_2']) bones['leg_joint_L_2'].scale.setScalar(p.kneeSize);
+            if (bones['leg_joint_R_2']) bones['leg_joint_R_2'].scale.setScalar(p.kneeSize);
+            if (bones['leg_joint_L_3']) bones['leg_joint_L_3'].scale.setScalar(p.ankleSize);
+            if (bones['leg_joint_R_3']) bones['leg_joint_R_3'].scale.setScalar(p.ankleSize);
+            if (bones['leg_joint_L_5']) bones['leg_joint_L_5'].scale.setScalar(p.footSize);
+            if (bones['leg_joint_R_5']) bones['leg_joint_R_5'].scale.setScalar(p.footSize);
+            if (bones['Skeleton_arm_joint_R__2_']) bones['Skeleton_arm_joint_R__2_'].scale.setScalar(p.elbowSize);
+            if (bones['Skeleton_arm_joint_L__3_']) bones['Skeleton_arm_joint_L__3_'].scale.setScalar(p.elbowSize);
+            if (bones['Skeleton_arm_joint_R__3_']) bones['Skeleton_arm_joint_R__3_'].scale.setScalar(p.handSize);
+            if (bones['Skeleton_arm_joint_L__2_']) bones['Skeleton_arm_joint_L__2_'].scale.setScalar(p.handSize);
+            if (bones['Skeleton_neck_joint_2']) {
+                const head = (p.eyeSize + p.mouthSize + p.noseSize) / 3;
+                bones['Skeleton_neck_joint_2'].scale.setScalar(head);
             }
             model.traverse(o => { if (o.isMesh) o.material.color.set(p.bodyColor); });
         }
